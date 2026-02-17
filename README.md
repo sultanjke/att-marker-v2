@@ -1,3 +1,12 @@
+<img width="300" height="300" alt="image" src="https://github.com/user-attachments/assets/05b30a40-45d9-4a08-bbfc-747eaf6a9221" />
+
+---------------------------------------------------------
+
+![Python](https://img.shields.io/badge/python-3.11+-3670A0?style=flat&logo=python&logoColor=ffdd54)
+![Selenium](https://img.shields.io/badge/selenium-4.40-%43B02A?style=flat&logo=selenium&logoColor=white)
+![Telegram](https://img.shields.io/badge/pythonTelegramBot-21.6-2CA5E0?style=flat&logo=telegram&logoColor=white)
+![Docker](https://img.shields.io/badge/docker-compose-%230db7ed.svg?style=flat&logo=docker&logoColor=white)
+
 # Attendance Marker v2 - KBTU
 
 Automated attendance marking system for KBTU's online registration portal (`wsp.kbtu.kz`), controlled entirely through a private Telegram bot with an invitation-based whitelist system.
