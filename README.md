@@ -192,6 +192,17 @@ Main entry point. Handles:
 - Auto-detects session expiry and re-authenticates
 - Thread-safe driver access via `threading.Lock`
 
+**Built-in diagnostics** (logged after every login and during each polling cycle):
+
+| Diagnostic | When | What it does |
+|---|---|---|
+| Screenshot | After login | Saves `/tmp/login_result_{username}.png` — verify Chrome landed on the correct page |
+| Page text dump | After login | Logs first 500 characters of the page body text |
+| Error scan | After login | Finds elements with `error`, `v-Notification`, or `warning` classes and logs them |
+| Post-login buttons | After login | Lists all button captions; detects `Кіру`/`Войти` to flag login failure |
+| URL + buttons | Every refresh | Logs current URL and all visible button captions |
+| Button fallback | When `Отметиться` not found | Logs all `v-button` captions on the page for debugging |
+
 **Public API:**
 ```python
 monitor = AttendanceMonitor(username, password, mode, on_attendance_found, on_status_update)

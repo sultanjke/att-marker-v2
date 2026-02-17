@@ -135,7 +135,44 @@ class AttendanceMonitor:
         login_button.click()
         time.sleep(5)
 
-        self._notify_status(f"[{self.username}] Login attempted. URL: {driver.current_url}")
+        self._notify_status(f"[{self.username}] After login URL: {driver.current_url}")
+
+        # Screenshot
+        try:
+            screenshot_path = f"/tmp/login_result_{self.username}.png"
+            driver.save_screenshot(screenshot_path)
+            self._notify_status(f"[{self.username}] Screenshot saved to {screenshot_path}")
+        except Exception:
+            pass
+
+        # Check for errors on page
+        try:
+            errors = driver.find_elements(By.XPATH,
+                "//*[contains(@class, 'error') or contains(@class, 'v-Notification') or contains(@class, 'warning')]")
+            for err in errors:
+                if err.text.strip():
+                    self._notify_status(f"[{self.username}] [ERROR ON PAGE] {err.text}")
+        except Exception:
+            pass
+
+        # Page text (first 500 chars)
+        try:
+            body_text = driver.find_element(By.TAG_NAME, "body").text
+            self._notify_status(f"[{self.username}] [PAGE TEXT] {body_text[:500]}")
+        except Exception:
+            pass
+
+        # Post-login buttons
+        try:
+            all_buttons = driver.find_elements(By.XPATH, "//span[@class='v-button-caption']")
+            btn_texts = [b.text for b in all_buttons if b.text.strip()]
+            self._notify_status(f"[{self.username}] [POST-LOGIN BUTTONS] {btn_texts}")
+            if '\u041a\u0456\u0440\u0443' in btn_texts or '\u0412\u043e\u0439\u0442\u0438' in btn_texts:
+                self._notify_status(f"[{self.username}] !!! LOGIN FAILED - still on login page !!!")
+            else:
+                self._notify_status(f"[{self.username}] LOGIN SUCCESS - inside the app")
+        except Exception as e:
+            self._notify_status(f"[{self.username}] Error checking buttons: {e}")
 
     def _is_session_expired(self, driver):
         try:
@@ -174,6 +211,15 @@ class AttendanceMonitor:
 
                 time.sleep(3)
 
+                # Debug: show current URL and all buttons
+                self._notify_status(f"[{self.username}] [URL] {driver.current_url}")
+                try:
+                    all_buttons = driver.find_elements(By.XPATH, "//span[@class='v-button-caption']")
+                    btn_texts = [b.text for b in all_buttons if b.text.strip()]
+                    self._notify_status(f"[{self.username}] [ALL BUTTONS] {btn_texts}")
+                except Exception:
+                    pass
+
                 if not self.skip_login and self._is_session_expired(driver):
                     self._notify_status(f"[{self.username}] Session expired, re-logging in...")
                     self._do_login(driver, wait)
@@ -207,7 +253,15 @@ class AttendanceMonitor:
                             self._pending_mark = False
 
                 except Exception:
-                    pass  # Button not available
+                    # Button not available — debug: show visible buttons
+                    try:
+                        buttons = driver.find_elements(By.XPATH,
+                            "//div[contains(@class, 'v-button')]//span[@class='v-button-caption']")
+                        btn_texts = [b.text for b in buttons if b.text.strip()]
+                        if btn_texts:
+                            self._notify_status(f"[{self.username}] [DEBUG] Buttons on page: {btn_texts}")
+                    except Exception:
+                        pass
 
                 # Wait before next refresh
                 for _ in range(REFRESH_INTERVAL):
