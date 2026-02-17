@@ -34,7 +34,7 @@ Student presses "Start Monitoring" in Telegram
   → bot.py creates AttendanceMonitor with callbacks
     → monitor.py spawns thread, launches headless Chrome
       → Logs into wsp.kbtu.kz
-      → Polls every 35 seconds for "Отметиться" button
+      → Polls every 20 seconds for "Отметиться" button
         → Button found?
           → Automatic: click + callback → bot sends "[email] Attendance Marked."
           → Manual: callback → bot sends message with "Mark Now" button
@@ -179,7 +179,7 @@ Main entry point. Handles:
 `AttendanceMonitor` class — one instance per active student:
 - Launches headless Chrome in a daemon thread
 - Logs into `wsp.kbtu.kz/RegistrationOnline`
-- Polls every 35 seconds for the `Отметиться` button
+- Polls every 20 seconds for the `Отметиться` button
 - Handles automatic clicking or manual mode with `mark_now()` method
 - Auto-detects session expiry and re-authenticates
 - Thread-safe driver access via `threading.Lock`
