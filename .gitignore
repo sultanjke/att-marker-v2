@@ -1,0 +1,7 @@
+venv/
+.env
+data/
+__pycache__/
+tmpclaude-*
+local.html
+local.py
