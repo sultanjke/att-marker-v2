@@ -4,7 +4,6 @@
 
 ![Python](https://img.shields.io/badge/python-3.11+-3670A0?style=flat&logo=python&logoColor=ffdd54)
 ![Selenium](https://img.shields.io/badge/selenium-4.40-%43B02A?style=flat&logo=selenium&logoColor=white)
-![Telegram](https://img.shields.io/badge/pythonTelegramBot-21.6-2CA5E0?style=flat&logo=telegram&logoColor=white)
 ![Docker](https://img.shields.io/badge/docker-compose-%230db7ed.svg?style=flat&logo=docker&logoColor=white)
 
 # Attendance Marker v2 - KBTU
