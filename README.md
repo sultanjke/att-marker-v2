@@ -244,7 +244,7 @@ Hardcoded constants in `monitor.py`:
 | Constant | Value | Description |
 |---|---|---|
 | `LOGIN_URL` | `https://wsp.kbtu.kz/RegistrationOnline` | KBTU portal URL |
-| `REFRESH_INTERVAL` | `35` | Seconds between page polls |
+| `REFRESH_INTERVAL` | `20` | Seconds between page polls |
 
 ## Docker
 

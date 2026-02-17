@@ -9,7 +9,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 LOGIN_URL = "https://wsp.kbtu.kz/RegistrationOnline"
-REFRESH_INTERVAL = 35 # seconds
+REFRESH_INTERVAL = 20 # seconds
 
 
 class AttendanceMonitor:

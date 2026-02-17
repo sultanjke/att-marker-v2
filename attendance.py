@@ -15,7 +15,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 load_dotenv()
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-REFRESH_INTERVAL = 35  # seconds
+REFRESH_INTERVAL = 20  # seconds
 LOGIN_URL = "https://wsp.kbtu.kz/RegistrationOnline" # selenium perform url
 
 def load_users():
@@ -47,7 +47,7 @@ def do_login(driver, wait, username, password):
 
     # Username - это combobox (выпадающий список с возможностью ввода)
     # Ищем input внутри v-filterselect
-    
+
     username_field = wait.until(EC.presence_of_element_located((By.XPATH, "//input[contains(@class, 'v-filterselect-input')]")))
     username_field.clear()
     username_field.send_keys(username)
