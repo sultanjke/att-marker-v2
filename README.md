@@ -2,12 +2,12 @@
 
 Automated attendance marking system for KBTU's online registration portal (`wsp.kbtu.kz`), controlled entirely through a private Telegram bot with an invitation-based whitelist system.
 
-When a teacher opens online attendance on the portal, the system detects it and either marks it automatically and notifies the student via Telegram — depending on the chosen mode.
+When a teacher opens online attendance on the portal, the system detects it, and either marks it automatically and notifies the student via Telegram — depending on the chosen mode.
 
 ## How It Works
 
 1. **Admin** generates a one-time invitation code via the Telegram bot
-2. **Whitelisted Student** enters the invitation code in the bot, provides KBTU credentials (username + password)
+2. **Whitelisted Student** enters the invitation code in the bot, to get whitelisted, and provides KBTU credentials (username + password)
 3. Student's Telegram account is **permanently linked via telegram_id** — no logout, lifetime session
 4. Student presses **Start Monitoring** — the system launches a headless Chrome instance, logs into `wsp.kbtu.kz`, and polls the page every 20 seconds
 5. When the `Отметиться` (Check In) button appears:
@@ -81,7 +81,7 @@ TELEGRAM_BOT_TOKEN=your_bot_token_here
 ADMIN_TELEGRAM_ID=your_telegram_user_id_here
 ```
 
-To find your Telegram user ID, message [@userinfobot](https://t.me/userinfobot) on Telegram.
+To find your Telegram user ID, message [@Getmyid_bot](https://t.me/Getmyid_bot) on Telegram.
 
 ### 3a. Run with Docker (Recommended)
 
@@ -286,11 +286,5 @@ services:
 - **Credentials stored in plain text** in `data/students.json` — ensure this file is protected. The `data/` directory is in `.gitignore`
 - **`.env` is in `.gitignore`** — never commit bot tokens or admin IDs
 
-## Tech Stack
-
-- **Python 3.11**
-- **Selenium 4.40** — headless Chrome automation
-- **python-telegram-bot 21.6** — async Telegram Bot API
-- **webdriver-manager** — automatic ChromeDriver management
-- **python-dotenv** — environment variable loading
-- **Docker** — containerized deployment with Chrome
+## License
+MIT License
