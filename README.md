@@ -29,7 +29,6 @@ When a teacher opens online attendance on the portal, the system detects it, and
 bot.py          Main entry point. Telegram bot (async) + monitor orchestration
 monitor.py      Attendance Monitor class. One headless Chrome thread per user
 storage.py      Thread-safe JSON file persistence (students, invitation codes)
-attendance.py   Legacy standalone script (kept for reference)
 data/           Auto-created directory for persistent JSON data
 ```
 
@@ -56,7 +55,6 @@ att-marker-v2/
 ├── bot.py                 Telegram bot + main entry point
 ├── monitor.py             Selenium-based attendance monitor class
 ├── storage.py             Thread-safe JSON storage (students, invitations)
-├── attendance.py          Legacy standalone script
 ├── requirements.txt       Python dependencies
 ├── Dockerfile             Docker image (Python 3.11 + Chrome)
 ├── docker-compose.yml     Docker Compose config
