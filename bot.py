@@ -53,6 +53,8 @@ def get_main_menu(student: dict) -> InlineKeyboardMarkup:
         buttons.append([InlineKeyboardButton("Start Monitoring", callback_data="start")])
     buttons.append([InlineKeyboardButton(f"Switch to {mode_label}", callback_data="switch_mode")])
     buttons.append([InlineKeyboardButton("Status", callback_data="status")])
+    if is_admin(student.get("telegram_id", 0)):
+        buttons.append([InlineKeyboardButton("Admin Panel", callback_data="admin_panel")])
     return InlineKeyboardMarkup(buttons)
 
 
