@@ -3,5 +3,8 @@ services:
     build: .
     container_name: kbtu-attendance
     restart: unless-stopped
+    shm_size: '512m'
     env_file:
       - .env
+    volumes:
+      - ./data:/app/data

@@ -110,7 +110,7 @@ class AttendanceMonitor:
         options.add_argument("--disable-extensions")
         options.add_argument("--disable-software-rasterizer")
         options.add_argument("--js-flags=--max-old-space-size=256")
-        options.add_argument("--single-process")
+        options.add_argument("--remote-debugging-port=0")
         driver = webdriver.Chrome(
             service=Service(ChromeDriverManager().install()),
             options=options,
