@@ -3,6 +3,7 @@ import asyncio
 import logging
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.error import BadRequest
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -199,6 +200,16 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telegram_id = query.from_user.id
     data = query.data
 
+    try:
+        await _handle_button(query, telegram_id, data, context)
+    except BadRequest as e:
+        if "Message is not modified" in str(e):
+            pass
+        else:
+            raise
+
+
+async def _handle_button(query, telegram_id, data, context):
     student = storage.get_student(telegram_id)
     if not student and data not in ("enter_code", "admin_panel", "admin_generate", "admin_students", "admin_active"):
         await query.edit_message_text("You are not registered. Use /start to begin.")
