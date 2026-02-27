@@ -106,6 +106,11 @@ class AttendanceMonitor:
         options.add_argument("--headless")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--disable-software-rasterizer")
+        options.add_argument("--js-flags=--max-old-space-size=256")
+        options.add_argument("--single-process")
         driver = webdriver.Chrome(
             service=Service(ChromeDriverManager().install()),
             options=options,
@@ -189,94 +194,112 @@ class AttendanceMonitor:
 
     def _run(self):
         self._notify_status(f"[{self.username}] Starting monitor...")
-        try:
-            with self._driver_lock:
-                self._driver = self._create_driver()
-            driver = self._driver
-            wait = WebDriverWait(driver, 15)
-            if not self.skip_login:
-                self._do_login(driver, wait)
+        restart_count = 0
+        max_restarts = 50
 
-            refresh_count = 0
-            while not self._stop_event.is_set():
-                refresh_count += 1
-                self._notify_status(
-                    f"[{self.username}] [{time.strftime('%H:%M:%S')}] Refresh #{refresh_count}"
-                )
-
-                with self._driver_lock:
-                    if self._driver is None:
-                        break
-                    driver.get(self.url)
-
-                time.sleep(3)
-
-                # Debug: show current URL and all buttons
-                self._notify_status(f"[{self.username}] [URL] {driver.current_url}")
-                try:
-                    all_buttons = driver.find_elements(By.XPATH, "//span[@class='v-button-caption']")
-                    btn_texts = [b.text for b in all_buttons if b.text.strip()]
-                    self._notify_status(f"[{self.username}] [ALL BUTTONS] {btn_texts}")
-                except Exception:
-                    pass
-
-                if not self.skip_login and self._is_session_expired(driver):
-                    self._notify_status(f"[{self.username}] Session expired, re-logging in...")
-                    self._do_login(driver, wait)
-                    time.sleep(5)
-
-                # Look for attendance button
-                try:
-                    otmetitsya_button = WebDriverWait(driver, 5).until(
-                        EC.element_to_be_clickable((By.XPATH,
-                            "//span[@class='v-button-caption' and text()='\u041e\u0442\u043c\u0435\u0442\u0438\u0442\u044c\u0441\u044f']"
-                            "/ancestor::div[contains(@class, 'v-button')]"))
-                    )
-
-                    if self.mode == "automatic":
-                        otmetitsya_button.click()
-                        self._notify_status(f"[{self.username}] Attendance button clicked!")
-                        self._notify_found(self.username, "marked")
-                        time.sleep(2)
-                    else:
-                        # Manual mode: notify user, wait for mark_now()
-                        self._pending_mark = True
-                        self._notify_found(self.username, "found")
-                        self._notify_status(f"[{self.username}] Attendance available! Waiting for manual mark...")
-                        # Wait up to 5 minutes for user to press Mark Now
-                        waited = 0
-                        while self._pending_mark and waited < 300 and not self._stop_event.is_set():
-                            time.sleep(2)
-                            waited += 2
-                        if self._pending_mark:
-                            self._notify_status(f"[{self.username}] Manual mark timed out.")
-                            self._pending_mark = False
-
-                except Exception:
-                    # Button not available — debug: show visible buttons
-                    try:
-                        buttons = driver.find_elements(By.XPATH,
-                            "//div[contains(@class, 'v-button')]//span[@class='v-button-caption']")
-                        btn_texts = [b.text for b in buttons if b.text.strip()]
-                        if btn_texts:
-                            self._notify_status(f"[{self.username}] [DEBUG] Buttons on page: {btn_texts}")
-                    except Exception:
-                        pass
-
-                # Wait before next refresh
-                for _ in range(REFRESH_INTERVAL):
+        while not self._stop_event.is_set() and restart_count <= max_restarts:
+            if restart_count > 0:
+                wait_time = min(30, 5 * restart_count)
+                self._notify_status(f"[{self.username}] Restarting monitor (attempt {restart_count}/{max_restarts}) in {wait_time}s...")
+                for _ in range(wait_time):
                     if self._stop_event.is_set():
-                        break
+                        return
                     time.sleep(1)
 
-        except Exception as e:
-            self._notify_status(f"[{self.username}] Monitor error: {e}")
-        finally:
-            with self._driver_lock:
-                if self._driver:
+            try:
+                with self._driver_lock:
+                    self._driver = self._create_driver()
+                driver = self._driver
+                wait = WebDriverWait(driver, 15)
+                if not self.skip_login:
+                    self._do_login(driver, wait)
+
+                restart_count = 0  # Reset on successful start
+
+                refresh_count = 0
+                while not self._stop_event.is_set():
+                    refresh_count += 1
+                    self._notify_status(
+                        f"[{self.username}] [{time.strftime('%H:%M:%S')}] Refresh #{refresh_count}"
+                    )
+
+                    with self._driver_lock:
+                        if self._driver is None:
+                            break
+                        driver.get(self.url)
+
+                    time.sleep(3)
+
+                    # Debug: show current URL and all buttons
+                    self._notify_status(f"[{self.username}] [URL] {driver.current_url}")
                     try:
-                        self._driver.quit()
+                        all_buttons = driver.find_elements(By.XPATH, "//span[@class='v-button-caption']")
+                        btn_texts = [b.text for b in all_buttons if b.text.strip()]
+                        self._notify_status(f"[{self.username}] [ALL BUTTONS] {btn_texts}")
                     except Exception:
                         pass
-                    self._driver = None
-            self._notify_status(f"[{self.username}] Monitor stopped.")
+
+                    if not self.skip_login and self._is_session_expired(driver):
+                        self._notify_status(f"[{self.username}] Session expired, re-logging in...")
+                        self._do_login(driver, wait)
+                        time.sleep(5)
+
+                    # Look for attendance button
+                    try:
+                        otmetitsya_button = WebDriverWait(driver, 5).until(
+                            EC.element_to_be_clickable((By.XPATH,
+                                "//span[@class='v-button-caption' and text()='\u041e\u0442\u043c\u0435\u0442\u0438\u0442\u044c\u0441\u044f']"
+                                "/ancestor::div[contains(@class, 'v-button')]"))
+                        )
+
+                        if self.mode == "automatic":
+                            otmetitsya_button.click()
+                            self._notify_status(f"[{self.username}] Attendance button clicked!")
+                            self._notify_found(self.username, "marked")
+                            time.sleep(2)
+                        else:
+                            # Manual mode: notify user, wait for mark_now()
+                            self._pending_mark = True
+                            self._notify_found(self.username, "found")
+                            self._notify_status(f"[{self.username}] Attendance available! Waiting for manual mark...")
+                            # Wait up to 5 minutes for user to press Mark Now
+                            waited = 0
+                            while self._pending_mark and waited < 300 and not self._stop_event.is_set():
+                                time.sleep(2)
+                                waited += 2
+                            if self._pending_mark:
+                                self._notify_status(f"[{self.username}] Manual mark timed out.")
+                                self._pending_mark = False
+
+                    except Exception:
+                        # Button not available — debug: show visible buttons
+                        try:
+                            buttons = driver.find_elements(By.XPATH,
+                                "//div[contains(@class, 'v-button')]//span[@class='v-button-caption']")
+                            btn_texts = [b.text for b in buttons if b.text.strip()]
+                            if btn_texts:
+                                self._notify_status(f"[{self.username}] [DEBUG] Buttons on page: {btn_texts}")
+                        except Exception:
+                            pass
+
+                    # Wait before next refresh
+                    for _ in range(REFRESH_INTERVAL):
+                        if self._stop_event.is_set():
+                            break
+                        time.sleep(1)
+
+            except Exception as e:
+                self._notify_status(f"[{self.username}] Monitor error: {e}")
+                restart_count += 1
+            finally:
+                with self._driver_lock:
+                    if self._driver:
+                        try:
+                            self._driver.quit()
+                        except Exception:
+                            pass
+                        self._driver = None
+
+        if restart_count > max_restarts:
+            self._notify_status(f"[{self.username}] Monitor gave up after {max_restarts} restarts.")
+        self._notify_status(f"[{self.username}] Monitor stopped.")

@@ -347,6 +347,13 @@ def main():
     if not ADMIN_TELEGRAM_ID:
         logger.warning("ADMIN_TELEGRAM_ID not set in .env — admin features disabled")
 
+    # Reset stale monitoring flags from previous run
+    students = storage.get_all_students()
+    for tid, s in students.items():
+        if s.get("monitoring"):
+            storage.update_student(int(tid), monitoring=False)
+            logger.info(f"[{s['username']}] Reset stale monitoring flag")
+
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
     # Conversation handler for registration flow
@@ -367,6 +374,29 @@ def main():
 
     app.add_handler(registration_conv)
     app.add_handler(CallbackQueryHandler(button_callback))
+
+    # Watchdog: periodically check for dead monitors and clean them up
+    async def watchdog(context: ContextTypes.DEFAULT_TYPE):
+        dead = []
+        for tid, mon in list(monitors.items()):
+            if not mon.is_running():
+                dead.append(tid)
+        for tid in dead:
+            s = storage.get_student(tid)
+            username = s["username"] if s else str(tid)
+            logger.warning(f"[{username}] Monitor thread died — cleaning up")
+            del monitors[tid]
+            storage.update_student(tid, monitoring=False)
+            try:
+                await context.bot.send_message(
+                    chat_id=tid,
+                    text=f"[{username}] Monitor crashed and stopped. Press Start Monitoring to restart.",
+                    reply_markup=get_main_menu(storage.get_student(tid)),
+                )
+            except Exception:
+                pass
+
+    app.job_queue.run_repeating(watchdog, interval=60, first=30)
 
     logger.info("Bot started. Polling...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
