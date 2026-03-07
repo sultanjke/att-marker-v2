@@ -10,6 +10,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 LOGIN_URL = "https://wsp.kbtu.kz/RegistrationOnline"
 REFRESH_INTERVAL = 20 # seconds
+CHROME_RESTART_EVERY = 30  # restart Chrome every N refreshes to prevent memory leaks
 
 
 class AttendanceMonitor:
@@ -103,14 +104,22 @@ class AttendanceMonitor:
     def _create_driver(self):
         options = Options()
         options.add_argument("--ignore-certificate-errors")
-        options.add_argument("--headless")
+        options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
         options.add_argument("--disable-extensions")
         options.add_argument("--disable-software-rasterizer")
-        options.add_argument("--js-flags=--max-old-space-size=256")
-        options.add_argument("--remote-debugging-port=0")
+        options.add_argument("--js-flags=--max-old-space-size=128")
+        options.add_argument("--disable-background-networking")
+        options.add_argument("--disable-default-apps")
+        options.add_argument("--disable-sync")
+        options.add_argument("--disable-translate")
+        options.add_argument("--disable-background-timer-throttling")
+        options.add_argument("--disable-renderer-backgrounding")
+        options.add_argument("--disable-backgrounding-occluded-windows")
+        options.add_argument("--no-first-run")
+        options.add_argument("--window-size=800,600")
         driver = webdriver.Chrome(
             service=Service(ChromeDriverManager().install()),
             options=options,
@@ -219,6 +228,12 @@ class AttendanceMonitor:
                 refresh_count = 0
                 while not self._stop_event.is_set():
                     refresh_count += 1
+
+                    # Periodic Chrome restart to prevent memory leaks
+                    if refresh_count > CHROME_RESTART_EVERY:
+                        self._notify_status(f"[{self.username}] Restarting Chrome to free memory...")
+                        break  # exits inner loop, goes to finally which quits driver, then outer loop creates new one
+
                     self._notify_status(
                         f"[{self.username}] [{time.strftime('%H:%M:%S')}] Refresh #{refresh_count}"
                     )
