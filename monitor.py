@@ -120,7 +120,6 @@ class AttendanceMonitor:
         options.add_argument("--window-size=800,600")
         driver = webdriver.Chrome(
             options=options,
-            options=options,
         )
         return driver
 
