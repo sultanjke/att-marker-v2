@@ -2,11 +2,9 @@ import time
 import threading
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
 
 LOGIN_URL = "https://wsp.kbtu.kz/RegistrationOnline"
 REFRESH_INTERVAL = 20 # seconds
@@ -121,7 +119,7 @@ class AttendanceMonitor:
         options.add_argument("--no-first-run")
         options.add_argument("--window-size=800,600")
         driver = webdriver.Chrome(
-            service=Service(ChromeDriverManager().install()),
+            options=options,
             options=options,
         )
         return driver
