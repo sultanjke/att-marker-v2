@@ -9,8 +9,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 LOGIN_URL = "https://wsp.kbtu.kz/RegistrationOnline"
-REFRESH_INTERVAL = 20 # seconds
-CHROME_RESTART_EVERY = 30  # restart Chrome every N refreshes to prevent memory leaks
+REFRESH_INTERVAL = 30 # seconds
+CHROME_RESTART_EVERY = 40  # restart Chrome every N refreshes to prevent memory leaks
 
 
 class AttendanceMonitor:
