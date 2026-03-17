@@ -2,16 +2,15 @@ FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
 
-# Install Chrome and dependencies
+# Install Chromium and ChromeDriver from apt (guaranteed version match)
 RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    unzip \
-    && wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
-    && apt-get install -y /tmp/chrome.deb \
-    && rm /tmp/chrome.deb \
+    chromium \
+    chromium-driver \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+ENV CHROME_BIN=/usr/bin/chromium
+ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
 
 WORKDIR /app
 

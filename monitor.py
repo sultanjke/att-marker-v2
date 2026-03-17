@@ -1,7 +1,9 @@
+import os
 import time
 import threading
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -118,9 +120,20 @@ class AttendanceMonitor:
         options.add_argument("--disable-backgrounding-occluded-windows")
         options.add_argument("--no-first-run")
         options.add_argument("--window-size=800,600")
-        driver = webdriver.Chrome(
-            options=options,
-        )
+
+        # Use system-installed chromium if available (Docker)
+        chrome_bin = os.environ.get("CHROME_BIN")
+        if chrome_bin:
+            options.binary_location = chrome_bin
+
+        chromedriver_path = os.environ.get("CHROMEDRIVER_PATH")
+        if chromedriver_path:
+            driver = webdriver.Chrome(
+                service=Service(chromedriver_path),
+                options=options,
+            )
+        else:
+            driver = webdriver.Chrome(options=options)
         return driver
 
     def _do_login(self, driver, wait):
