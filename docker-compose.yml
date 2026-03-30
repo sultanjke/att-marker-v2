@@ -3,7 +3,7 @@ services:
     build: .
     container_name: kbtu-attendance
     restart: unless-stopped
-    shm_size: '256m'
+    shm_size: '1g'
     deploy:
       resources:
         limits:

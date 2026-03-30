@@ -1,7 +1,11 @@
 import os
 import time
 import threading
+import hashlib
+import shutil
+import tempfile
 from selenium import webdriver
+from selenium.common.exceptions import SessionNotCreatedException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -40,6 +44,10 @@ class AttendanceMonitor:
         self._driver = None
         self._driver_lock = threading.Lock()
         self._pending_mark = False  # True when manual mode found button, waiting for user
+        safe_id = hashlib.sha1(username.encode("utf-8")).hexdigest()[:12]
+        tmp_dir = tempfile.gettempdir()
+        self._profile_dir = os.path.join(tmp_dir, f"kbtu-chrome-profile-{safe_id}")
+        self._chromedriver_log_path = os.path.join(tmp_dir, f"kbtu-chromedriver-{safe_id}.log")
 
     # Public API
 
@@ -101,16 +109,43 @@ class AttendanceMonitor:
             except Exception:
                 pass
 
+    def _reset_profile_dir(self):
+        try:
+            shutil.rmtree(self._profile_dir, ignore_errors=True)
+            os.makedirs(self._profile_dir, exist_ok=True)
+        except Exception:
+            pass
+
+    def _purge_profile_dir(self):
+        try:
+            shutil.rmtree(self._profile_dir, ignore_errors=True)
+        except Exception:
+            pass
+
+    def _tail_chromedriver_log(self, lines=40):
+        try:
+            with open(self._chromedriver_log_path, "r", encoding="utf-8", errors="replace") as f:
+                data = f.readlines()
+            return "".join(data[-lines:]).strip()
+        except Exception:
+            return ""
+
     def _create_driver(self):
+        self._reset_profile_dir()
+
         options = Options()
         options.add_argument("--ignore-certificate-errors")
-        options.add_argument("--headless=new")
+
+        headless_mode = os.environ.get("CHROME_HEADLESS_MODE", "new").strip().lower()
+        if headless_mode in ("legacy", "old", "classic"):
+            options.add_argument("--headless")
+        else:
+            options.add_argument("--headless=new")
+
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
         options.add_argument("--disable-extensions")
-        options.add_argument("--disable-software-rasterizer")
-        options.add_argument("--js-flags=--max-old-space-size=128")
         options.add_argument("--disable-background-networking")
         options.add_argument("--disable-default-apps")
         options.add_argument("--disable-sync")
@@ -119,21 +154,27 @@ class AttendanceMonitor:
         options.add_argument("--disable-renderer-backgrounding")
         options.add_argument("--disable-backgrounding-occluded-windows")
         options.add_argument("--no-first-run")
-        options.add_argument("--window-size=800,600")
+        options.add_argument("--window-size=1280,800")
+        options.add_argument("--remote-debugging-pipe")
+        options.add_argument(f"--user-data-dir={self._profile_dir}")
 
         # Use system-installed chromium if available (Docker)
         chrome_bin = os.environ.get("CHROME_BIN")
         if chrome_bin:
             options.binary_location = chrome_bin
 
+        service_args = ["--verbose", f"--log-path={self._chromedriver_log_path}"]
         chromedriver_path = os.environ.get("CHROMEDRIVER_PATH")
         if chromedriver_path:
             driver = webdriver.Chrome(
-                service=Service(chromedriver_path),
+                service=Service(chromedriver_path, service_args=service_args),
                 options=options,
             )
         else:
-            driver = webdriver.Chrome(options=options)
+            driver = webdriver.Chrome(
+                service=Service(service_args=service_args),
+                options=options,
+            )
         return driver
 
     def _do_login(self, driver, wait):
@@ -314,7 +355,11 @@ class AttendanceMonitor:
                         time.sleep(1)
 
             except Exception as e:
-                self._notify_status(f"[{self.username}] Monitor error: {e}")
+                self._notify_status(f"[{self.username}] Monitor error ({type(e).__name__}): {e}")
+                if isinstance(e, SessionNotCreatedException):
+                    log_tail = self._tail_chromedriver_log()
+                    if log_tail:
+                        self._notify_status(f"[{self.username}] [ChromeDriver log tail]\n{log_tail}")
                 restart_count += 1
             finally:
                 with self._driver_lock:
@@ -324,6 +369,8 @@ class AttendanceMonitor:
                         except Exception:
                             pass
                         self._driver = None
+                self._pending_mark = False
+                self._purge_profile_dir()
 
         if restart_count > max_restarts:
             self._notify_status(f"[{self.username}] Monitor gave up after {max_restarts} restarts.")
