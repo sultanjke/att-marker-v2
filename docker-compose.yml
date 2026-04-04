@@ -3,7 +3,6 @@ services:
     build: .
     container_name: kbtu-attendance
     restart: unless-stopped
-    pids_limit: 1024
     ulimits:
       nproc: 65535
       nofile:
