@@ -130,6 +130,38 @@ class AttendanceMonitor:
         except Exception:
             return ""
 
+    def _pick_chrome_binary(self):
+        configured = os.environ.get("CHROME_BIN")
+        if configured and os.path.exists(configured):
+            return configured
+
+        # Prefer the real Chromium binary over the wrapper script in constrained containers.
+        candidates = (
+            "/usr/lib/chromium/chromium",
+            "/usr/bin/chromium",
+            "/usr/bin/chromium-browser",
+            "/usr/bin/google-chrome",
+        )
+        for candidate in candidates:
+            if os.path.exists(candidate):
+                return candidate
+        return None
+
+    def _pid_pressure_snapshot(self):
+        values = []
+        for path, label in (
+            ("/sys/fs/cgroup/pids.current", "pids.current"),
+            ("/sys/fs/cgroup/pids.max", "pids.max"),
+            ("/sys/fs/cgroup/pids/pids.current", "pids.current(v1)"),
+            ("/sys/fs/cgroup/pids/pids.max", "pids.max(v1)"),
+        ):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    values.append(f"{label}={f.read().strip()}")
+            except Exception:
+                pass
+        return ", ".join(values)
+
     def _create_driver(self):
         self._reset_profile_dir()
 
@@ -150,18 +182,28 @@ class AttendanceMonitor:
         options.add_argument("--disable-default-apps")
         options.add_argument("--disable-sync")
         options.add_argument("--disable-translate")
+        options.add_argument("--disable-breakpad")
+        options.add_argument("--disable-crash-reporter")
+        options.add_argument("--disable-features=Crashpad")
         options.add_argument("--disable-background-timer-throttling")
         options.add_argument("--disable-renderer-backgrounding")
         options.add_argument("--disable-backgrounding-occluded-windows")
+        options.add_argument("--renderer-process-limit=1")
+        options.add_argument("--no-zygote")
         options.add_argument("--no-first-run")
         options.add_argument("--window-size=1280,800")
         options.add_argument("--remote-debugging-pipe")
         options.add_argument(f"--user-data-dir={self._profile_dir}")
 
-        # Use system-installed chromium if available (Docker)
-        chrome_bin = os.environ.get("CHROME_BIN")
+        # Use a known local browser binary path; avoid wrapper scripts when possible.
+        chrome_bin = self._pick_chrome_binary()
         if chrome_bin:
             options.binary_location = chrome_bin
+
+        extra_args = os.environ.get("CHROME_EXTRA_ARGS", "").strip()
+        if extra_args:
+            for arg in extra_args.split():
+                options.add_argument(arg)
 
         service_args = ["--verbose", f"--log-path={self._chromedriver_log_path}"]
         chromedriver_path = os.environ.get("CHROMEDRIVER_PATH")
@@ -357,6 +399,9 @@ class AttendanceMonitor:
             except Exception as e:
                 self._notify_status(f"[{self.username}] Monitor error ({type(e).__name__}): {e}")
                 if isinstance(e, SessionNotCreatedException):
+                    pressure = self._pid_pressure_snapshot()
+                    if pressure:
+                        self._notify_status(f"[{self.username}] [PID pressure] {pressure}")
                     log_tail = self._tail_chromedriver_log()
                     if log_tail:
                         self._notify_status(f"[{self.username}] [ChromeDriver log tail]\n{log_tail}")
