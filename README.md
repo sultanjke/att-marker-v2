@@ -85,6 +85,18 @@ cd att-marker-v2
 ```env
 TELEGRAM_BOT_TOKEN=your_bot_token_here
 ADMIN_TELEGRAM_ID=your_telegram_user_id_here
+
+# Recommended for one-person usage:
+SINGLE_USER_MODE=1
+SINGLE_USER_TELEGRAM_ID=your_telegram_user_id_here
+KBTU_USERNAME=your_kbtu_email_here
+KBTU_PASSWORD=your_kbtu_password_here
+SINGLE_USER_AUTOSTART=1
+SINGLE_USER_MONITOR_MODE=automatic
+MAX_ACTIVE_MONITORS=1
+CHROME_PID_MIN_FREE=20
+CHROME_PID_WAIT_MAX=300
+CHROME_RESTART_EVERY=0
 ```
 
 To find your Telegram user ID, message [@Getmyid_bot](https://t.me/Getmyid_bot) on Telegram.
@@ -254,9 +266,21 @@ All configuration is done through the `.env` file:
 | Variable | Required | Description |
 |---|---|---|
 | `TELEGRAM_BOT_TOKEN` | Yes | Bot token from @BotFather |
-| `ADMIN_TELEGRAM_ID` | Yes | Telegram user ID of the admin account |
+| `ADMIN_TELEGRAM_ID` | Yes (multi-user) | Telegram user ID of the admin account |
+| `MAX_ACTIVE_MONITORS` | No | Global monitor capacity (`1` is recommended in single-user mode) |
+| `SINGLE_USER_MODE` | No | `1` enables single-user runtime path (no invitation/registration flow) |
+| `SINGLE_USER_TELEGRAM_ID` | No | Allowed Telegram ID in single-user mode (defaults to `ADMIN_TELEGRAM_ID`) |
+| `KBTU_USERNAME` | Yes (single-user mode) | KBTU username/email used by the monitor |
+| `KBTU_PASSWORD` | Yes (single-user mode) | KBTU password used by the monitor |
+| `SINGLE_USER_AUTOSTART` | No | `1` auto-starts monitor at bot boot in single-user mode |
+| `SINGLE_USER_MONITOR_MODE` | No | `automatic` or `manual` default mode in single-user mode |
+| `SINGLE_USER_AUTOSTART_MAX_ATTEMPTS` | No | Maximum auto-start retry attempts |
+| `SINGLE_USER_AUTOSTART_BASE_DELAY` | No | Base seconds for bounded auto-start retry backoff |
+| `CHROME_RESTART_EVERY` | No | Force restart Chrome every N refreshes; `0` disables forced restarts |
+| `CHROME_PID_MIN_FREE` | No | Minimum free PID slots required before Chrome launch |
+| `CHROME_PID_WAIT_MAX` | No | Max seconds to wait for PID headroom before startup timeout |
 
-Hardcoded constants in `monitor.py`:
+Monitor constants:
 
 | Constant | Value | Description |
 |---|---|---|

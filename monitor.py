@@ -4,6 +4,7 @@ import threading
 import hashlib
 import shutil
 import tempfile
+import signal
 from selenium import webdriver
 from selenium.common.exceptions import SessionNotCreatedException
 from selenium.webdriver.chrome.options import Options
@@ -14,7 +15,13 @@ from selenium.webdriver.support import expected_conditions as EC
 
 LOGIN_URL = "https://wsp.kbtu.kz/RegistrationOnline"
 REFRESH_INTERVAL = 30 # seconds
-CHROME_RESTART_EVERY = 40  # restart Chrome every N refreshes to prevent memory leaks
+
+
+def _env_int(name, default):
+    try:
+        return int(os.environ.get(name, str(default)).strip())
+    except Exception:
+        return default
 
 
 class AttendanceMonitor:
@@ -45,9 +52,13 @@ class AttendanceMonitor:
         self._driver_lock = threading.Lock()
         self._pending_mark = False  # True when manual mode found button, waiting for user
         safe_id = hashlib.sha1(username.encode("utf-8")).hexdigest()[:12]
+        self._profile_tag = f"kbtu-chrome-profile-{safe_id}"
         tmp_dir = tempfile.gettempdir()
-        self._profile_dir = os.path.join(tmp_dir, f"kbtu-chrome-profile-{safe_id}")
+        self._profile_dir = os.path.join(tmp_dir, self._profile_tag)
         self._chromedriver_log_path = os.path.join(tmp_dir, f"kbtu-chromedriver-{safe_id}.log")
+        self._chrome_restart_every = max(0, _env_int("CHROME_RESTART_EVERY", 40))
+        self._pid_min_free = max(5, _env_int("CHROME_PID_MIN_FREE", 20))
+        self._pid_wait_max = max(0, _env_int("CHROME_PID_WAIT_MAX", 300))
 
     # Public API
 
@@ -67,6 +78,13 @@ class AttendanceMonitor:
                 except Exception:
                     pass
                 self._driver = None
+        self._kill_stale_profile_processes()
+        if (
+            self._thread
+            and self._thread.is_alive()
+            and threading.current_thread() is not self._thread
+        ):
+            self._thread.join(timeout=10)
 
     def is_running(self):
         return self._thread is not None and self._thread.is_alive()
@@ -162,7 +180,119 @@ class AttendanceMonitor:
                 pass
         return ", ".join(values)
 
+    def _read_cgroup_pid_stats(self):
+        # cgroup v2 first, then v1 fallback
+        candidates = (
+            ("/sys/fs/cgroup/pids.current", "/sys/fs/cgroup/pids.max"),
+            ("/sys/fs/cgroup/pids/pids.current", "/sys/fs/cgroup/pids/pids.max"),
+        )
+        for current_path, max_path in candidates:
+            try:
+                with open(current_path, "r", encoding="utf-8") as f:
+                    current_raw = f.read().strip()
+                with open(max_path, "r", encoding="utf-8") as f:
+                    max_raw = f.read().strip()
+            except Exception:
+                continue
+
+            try:
+                current = int(current_raw)
+            except Exception:
+                continue
+
+            if max_raw == "max":
+                return current, None
+            try:
+                return current, int(max_raw)
+            except Exception:
+                return current, None
+        return None
+
+    def _wait_for_pid_headroom(self):
+        min_free = self._pid_min_free
+        max_wait = self._pid_wait_max
+
+        stats = self._read_cgroup_pid_stats()
+        if not stats:
+            return True
+        current, max_pids = stats
+        if max_pids is None:
+            return True
+        if (max_pids - current) >= min_free:
+            return True
+
+        deadline = time.time() + max_wait
+        next_log = 0
+        while not self._stop_event.is_set():
+            stats = self._read_cgroup_pid_stats()
+            if not stats:
+                return True
+            current, max_pids = stats
+            if max_pids is None:
+                return True
+            free = max_pids - current
+            if free >= min_free:
+                return True
+
+            now = time.time()
+            if now >= next_log:
+                self._notify_status(
+                    f"[{self.username}] Waiting for PID headroom before Chrome start "
+                    f"(current={current}, max={max_pids}, free={free}, need>={min_free})"
+                )
+                next_log = now + 10
+
+            if now >= deadline:
+                return False
+            time.sleep(1)
+        return False
+
+    def _kill_stale_profile_processes(self):
+        if os.name != "posix":
+            return
+        proc_dir = "/proc"
+        if not os.path.isdir(proc_dir):
+            return
+
+        killed = 0
+        me = os.getpid()
+        for name in os.listdir(proc_dir):
+            if not name.isdigit():
+                continue
+            pid = int(name)
+            if pid == me:
+                continue
+            cmdline_path = os.path.join(proc_dir, name, "cmdline")
+            try:
+                with open(cmdline_path, "rb") as f:
+                    raw = f.read()
+            except Exception:
+                continue
+            if not raw:
+                continue
+            cmd = raw.replace(b"\x00", b" ").decode("utf-8", errors="ignore")
+            if self._profile_tag not in cmd:
+                continue
+
+            try:
+                os.kill(pid, signal.SIGKILL)
+                killed += 1
+            except ProcessLookupError:
+                pass
+            except PermissionError:
+                pass
+            except Exception:
+                pass
+
+        if killed:
+            self._notify_status(f"[{self.username}] Cleaned stale Chromium processes: {killed}")
+
     def _create_driver(self):
+        self._kill_stale_profile_processes()
+        if not self._wait_for_pid_headroom():
+            raise SessionNotCreatedException(
+                "PID_HEADROOM_TIMEOUT: Insufficient PID headroom to launch Chrome."
+            )
         self._reset_profile_dir()
 
         options = Options()
@@ -190,6 +320,10 @@ class AttendanceMonitor:
         options.add_argument("--disable-backgrounding-occluded-windows")
         options.add_argument("--renderer-process-limit=1")
         options.add_argument("--no-zygote")
+        pid_stats = self._read_cgroup_pid_stats()
+        if pid_stats and pid_stats[1] and pid_stats[1] <= 1500:
+            # Low PID ceilings benefit from single-process mode.
+            options.add_argument("--single-process")
         options.add_argument("--no-first-run")
         options.add_argument("--window-size=1280,800")
         options.add_argument("--remote-debugging-pipe")
@@ -323,7 +457,7 @@ class AttendanceMonitor:
                     refresh_count += 1
 
                     # Periodic Chrome restart to prevent memory leaks
-                    if refresh_count > CHROME_RESTART_EVERY:
+                    if self._chrome_restart_every > 0 and refresh_count > self._chrome_restart_every:
                         self._notify_status(f"[{self.username}] Restarting Chrome to free memory...")
                         break  # exits inner loop, goes to finally which quits driver, then outer loop creates new one
 
@@ -399,6 +533,15 @@ class AttendanceMonitor:
             except Exception as e:
                 self._notify_status(f"[{self.username}] Monitor error ({type(e).__name__}): {e}")
                 if isinstance(e, SessionNotCreatedException):
+                    error_text = str(e)
+                    if "PID_HEADROOM_TIMEOUT" in error_text:
+                        self._notify_status(
+                            f"[{self.username}] Chrome start blocked: PID headroom wait timed out."
+                        )
+                    else:
+                        self._notify_status(
+                            f"[{self.username}] Chrome start failed during Selenium session creation."
+                        )
                     pressure = self._pid_pressure_snapshot()
                     if pressure:
                         self._notify_status(f"[{self.username}] [PID pressure] {pressure}")
@@ -416,6 +559,7 @@ class AttendanceMonitor:
                         self._driver = None
                 self._pending_mark = False
                 self._purge_profile_dir()
+                self._kill_stale_profile_processes()
 
         if restart_count > max_restarts:
             self._notify_status(f"[{self.username}] Monitor gave up after {max_restarts} restarts.")
